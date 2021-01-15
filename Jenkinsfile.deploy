@@ -36,7 +36,7 @@ pipeline {
 
         // Build&test information
         string(name: 'MAVEN_DEPENDENCIES_REPOSITORY', defaultValue: '', description: 'Maven repository where to find dependencies if those are not in the default JBoss repository.')
-        string(name: 'MAVEN_DEPLOY_CREDS_ID', defaultValue: '', description: 'Credentials for Maven repository to deploy the artifacts.')
+        string(name: 'MAVEN_REPO_CREDS_ID', defaultValue: '', description: 'Credentials for Maven repository to deploy the artifacts.')
         booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests')
         string(name: 'MAVEN_SETTINGS_CONFIG_FILE_ID', defaultValue: 'kogito_release_settings', description: 'Maven settings configfile to use in pipeline for Maven commands')
 
@@ -336,10 +336,10 @@ void mavenCleanInstallOptaPlannerParents() {
 }
 
 void deployMavenArtifacts(MavenCommand mvnCmd, String localDeployId){
-    if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_DEPLOY_CREDS_ID) {
+    if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_REPO_CREDS_ID) {
         // Deploy to specific repository with credentials
         runMavenDeployLocally(mvnCmd, localDeployId)
-        pushLocalArtifacts(localDeployId)
+        maven.uploadLocalArtifacts(params.MAVEN_REPO_CREDS_ID, getLocalDeploymentFolder(localDeployId), getMavenRepoZipUrl())
     } else if(!isRelease() || params.MAVEN_DEPLOY_REPOSITORY){
         // Normal deploy
         runMavenDeploy(mvnCmd)
@@ -347,18 +347,6 @@ void deployMavenArtifacts(MavenCommand mvnCmd, String localDeployId){
         // Deploy locally and then to staging
         runMavenDeployLocally(mvnCmd, localDeployId)
         runMavenStage(mvnCmd, localDeployId)
-    }
-}
-
-void pushLocalArtifacts(String localDeployId) {
-    withCredentials([usernameColonPassword(credentialsId: params.MAVEN_DEPLOY_CREDS_ID, variable: 'kieUnpack')]) {
-        dir(getLocalDeploymentFolder(localDeployId)) {
-            // unpack zip to QA Nexus
-            sh """
-            zip -r ${localDeployId} .
-            curl --silent --upload-file ${localDeployId}.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
-            """
-        }
     }
 }
 
